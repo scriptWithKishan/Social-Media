@@ -14,7 +14,7 @@ let db = null;
 const corsOptions = {
   origin: "http://localhost:3000", // Replace with your frontend URL
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
 app.use(express.json());
@@ -35,6 +35,30 @@ const initializeDbAndServer = async () => {
   }
 };
 initializeDbAndServer();
+
+const authenticationToken = (request, response, next) => {
+  let jwtToken;
+  const authHeader = request.headers["authorization"];
+
+  if (authHeader !== undefined) {
+    jwtToken = authHeader.split(" ")[1];
+  }
+
+  if (jwtToken === undefined) {
+    response.status(401);
+    response.send("Invalid JWT token1");
+  } else {
+    jwt.verify(jwtToken, "MY_SECRET_TOKEN", async (error, payload) => {
+      if (error) {
+        response.status(401);
+        response.send("Invalid JWT token2");
+      } else {
+        request.username = payload.username;
+        next();
+      }
+    });
+  }
+};
 
 app.post("/users/register", async (request, response) => {
   const { id, username, email, password } = request.body;
@@ -84,4 +108,11 @@ app.post("/users/login", async (request, response) => {
       response.send("Invalid Password");
     }
   }
+});
+
+app.get("/profile", authenticationToken, async (request, response) => {
+  const { username } = request;
+  const getUserDetailsQuery = `SELECT * FROM Users WHERE username = '${username}';`;
+  const userDetails = await db.get(getUserDetailsQuery);
+  response.send(userDetails);
 });
