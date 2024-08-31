@@ -5,10 +5,25 @@ const cors = require("cors");
 const { open } = require("sqlite");
 const sqlite3 = require("sqlite3");
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
+
 const app = express();
 
 const dbPath = path.join(__dirname, "project.db");
 let db = null;
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Use CORS middleware
 const corsOptions = {
@@ -116,3 +131,37 @@ app.get("/profile", authenticationToken, async (request, response) => {
   const userDetails = await db.get(getUserDetailsQuery);
   response.send(userDetails);
 });
+
+app.put(
+  "/update-profile",
+  authenticationToken,
+  upload.single("image"),
+  async (request, response) => {
+    const { username } = request;
+    const { firstName, lastName, bio } = request.body;
+
+    let updateFields = [];
+    if (firstName !== undefined)
+      updateFields.push(`first_name = '${firstName}'`);
+    if (lastName !== undefined) updateFields.push(`last_name = '${lastName}'`);
+    if (bio !== undefined) updateFields.push(`bio = '${bio}'`);
+    if (request.file) {
+      const imageUrl = `http://localhost:8000/uploads/${request.file.filename}`;
+      updateFields.push(`profile_image = '${imageUrl}'`);
+    }
+
+    if (updateFields.length > 0) {
+      const updateUserProfileQuery = `
+        UPDATE Users
+        SET ${updateFields.join(", ")}
+        WHERE username = '${username}';
+      `;
+
+      await db.run(updateUserProfileQuery);
+      response.send("Profile Updated Successfully");
+    } else {
+      response.status(400);
+      response.send("No fields to update");
+    }
+  }
+);
