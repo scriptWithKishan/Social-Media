@@ -2,6 +2,7 @@ import { Component } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
 
+import Header from "../Header";
 import UpdateProfile from "../UpdateProfile";
 
 class Profile extends Component {
@@ -46,17 +47,20 @@ class Profile extends Component {
     const { userDetails, showUpdate } = this.state;
 
     return (
-      <div className="profile-container">
-        <h1>Profile</h1>
-        <button type="button" onClick={this.showUpdate}>
-          Update Profile
-        </button>
-        {showUpdate && <UpdateProfile />}
-        <img src={userDetails.profileImage} />
-        <p>
-          {userDetails.firstName} {userDetails.lastName}
-        </p>
-      </div>
+      <>
+        <Header />
+        <div className="profile-container">
+          <h1>Profile</h1>
+          <button type="button" onClick={this.showUpdate}>
+            Update Profile
+          </button>
+          {showUpdate && <UpdateProfile />}
+          <img src={userDetails.profileImage} />
+          <p>
+            {userDetails.firstName} {userDetails.lastName}
+          </p>
+        </div>
+      </>
     );
   }
 }

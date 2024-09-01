@@ -94,7 +94,6 @@ app.post("/users/register", async (request, response) => {
         `;
     const dbResponse = await db.run(createUserQuery);
     console.log(dbResponse);
-    const newUserId = dbResponse.lastID;
     response.send(`Created New User Successfully`);
   } else {
     response.status(400);
@@ -165,3 +164,43 @@ app.put(
     }
   }
 );
+
+app.get("/users/search", authenticationToken, async (request, response) => {
+  const { search } = request.query;
+  const { username } = request;
+
+  const searchUsersQuery = `
+    SELECT
+      *
+    FROM
+      Users
+    WHERE
+      username LIKE '%${search}%' AND
+      NOT username = '${username}' 
+    LIMIT 10;
+  `;
+
+  const usersList = await db.all(searchUsersQuery);
+  response.send(usersList);
+});
+
+app.post("/users/follow", authenticationToken, async (request, response) => {
+  const { username } = request;
+  const { id, followingID } = request.body;
+
+  const getFollowerIDQuery = `SELECT id FROM Users WHERE username = '${username}';`;
+  const followerData = await db.get(getFollowerIDQuery);
+  const followerID = followerData.id;
+
+  const createFollowQuery = `
+    INSERT INTO Followers (id, follower_id, following_id)
+    VALUES (
+      '${id}',
+      '${followerID}',
+      '${followingID}'
+    );
+  `;
+
+  await db.run(createFollowQuery);
+  response.send("New Follow Created");
+});

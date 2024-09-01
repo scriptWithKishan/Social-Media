@@ -14,6 +14,7 @@ class Header extends Component {
       <>
         <Link to="/">Home</Link>
         <Link to="/profile">Profile</Link>
+        <Link to="/search">Search</Link>
         <button type="button" onClick={this.logoutButton}>
           Logout
         </button>
