@@ -66,7 +66,9 @@ class Search extends Component {
           </form>
           <ul>
             {searchResult ? (
-              <SearchResults usersList={usersList} />
+              usersList.map((eachEle) => (
+                <SearchResults key={eachEle.id} searchDetails={eachEle} />
+              ))
             ) : (
               <li>Search Users</li>
             )}

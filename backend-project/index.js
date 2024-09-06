@@ -6,6 +6,7 @@ const { open } = require("sqlite");
 const sqlite3 = require("sqlite3");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const { get } = require("http");
 
 const app = express();
 
@@ -184,23 +185,140 @@ app.get("/users/search", authenticationToken, async (request, response) => {
   response.send(usersList);
 });
 
+app.get(
+  "/users/:id/follow-status",
+  authenticationToken,
+  async (request, response) => {
+    const { id } = request.params;
+    const { username } = request;
+
+    try {
+      const getFollowerIDQuery = `SELECT id FROM Users WHERE username = '${username}';`;
+      const followerData = await db.get(getFollowerIDQuery);
+      const followerID = followerData.id;
+
+      const checkFollowStatusQuery = `
+        SELECT 1 FROM Followers
+        WHERE follower_id = '${followerID}' AND following_id = '${id}';
+      `;
+
+      const followStatus = await db.get(checkFollowStatusQuery);
+      if (followStatus) {
+        response.send({ isFollowing: true });
+      } else {
+        response.send({ isFollowing: false });
+      }
+    } catch (error) {
+      response.status(500).send("Error checking follow status");
+    }
+  }
+);
+
 app.post("/users/follow", authenticationToken, async (request, response) => {
   const { username } = request;
   const { id, followingID } = request.body;
 
-  const getFollowerIDQuery = `SELECT id FROM Users WHERE username = '${username}';`;
-  const followerData = await db.get(getFollowerIDQuery);
-  const followerID = followerData.id;
+  try {
+    const getFollowerIDQuery = `SELECT id FROM Users WHERE username = '${username}';`;
+    const followerData = await db.get(getFollowerIDQuery);
+    const followerID = followerData.id;
 
-  const createFollowQuery = `
-    INSERT INTO Followers (id, follower_id, following_id)
+    const createFollowQuery = `
+      INSERT INTO Followers (id, follower_id, following_id)
+      VALUES ('${id}', '${followerID}', '${followingID}');
+    `;
+
+    await db.run(createFollowQuery);
+    response.send("Followed Successfully");
+  } catch (error) {
+    response.status(500).send("Error following user");
+  }
+});
+
+app.delete(
+  "/users/unfollow",
+  authenticationToken,
+  async (request, response) => {
+    const { username } = request;
+    const { followingID } = request.body;
+
+    try {
+      const getUserQuery = `SELECT id FROM Users WHERE username = '${username}'`;
+      const followerData = await db.get(getUserQuery);
+      const followerID = followerData.id;
+
+      const deleteFollowQuery = `
+        DELETE FROM Followers
+        WHERE follower_id = '${followerID}' AND following_id = '${followingID}';
+      `;
+
+      await db.run(deleteFollowQuery);
+      response.send("Unfollowed Successfully");
+    } catch (error) {
+      response.status(500).send("Error unfollowing user");
+    }
+  }
+);
+
+app.post(
+  "/post",
+  authenticationToken,
+  upload.single("image"),
+  async (request, response) => {
+    const { username } = request;
+    const { id, content } = request.body;
+
+    const getUserQuery = `SELECT id FROM Users WHERE username = '${username}'`;
+    const userData = await db.get(getUserQuery);
+    const userID = userData.id;
+
+    let imageUrl = null;
+    if (request.file) {
+      imageUrl = `http://localhost:8000/uploads/${request.file.filename}`;
+    }
+
+    try {
+      const postQuery = `
+    INSERT INTO Posts
+      (id, user_id, content, image)
     VALUES (
       '${id}',
-      '${followerID}',
-      '${followingID}'
+      '${userID}',
+      '${content}',
+      '${imageUrl}'
     );
   `;
+      await db.run(postQuery);
+      response.send("Posted Successfully");
+    } catch (err) {
+      response.status(500).send("Error in Posting");
+    }
+  }
+);
 
-  await db.run(createFollowQuery);
-  response.send("New Follow Created");
+app.get("/feeds", authenticationToken, async (request, response) => {
+  const { username } = request;
+
+  const getUserQuery = `SELECT id FROM Users WHERE username = '${username}'`;
+  const userData = await db.get(getUserQuery);
+  const userID = userData.id;
+
+  try {
+    const getFeedsQuery = `
+    SELECT 
+      Posts.image, Posts.content, Posts.created_at, Posts.id
+    FROM
+      Posts
+    INNER JOIN Followers
+      ON Posts.user_id = Followers.following_id
+    WHERE
+      Followers.follower_id = '${userID}'
+    ORDER BY Posts.created_at DESC;
+  `;
+
+    const feedsData = await db.all(getFeedsQuery);
+    response.send(feedsData);
+  } catch (err) {
+    response.status(400).send("Failed to Fetch the data");
+  }
 });
